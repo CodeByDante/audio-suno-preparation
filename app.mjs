@@ -1,11 +1,35 @@
 import { preset, rate } from './settings.mjs';
-import { timeline } from './timeline.mjs';
+import { timeline } from './timeline.mjs?v=5';
 const el = id => document.getElementById(id);
 const form = el('processor');
 const file = el('file');
 const effects = el('effects');
 const sourcePlayer = el('source-player');
 const sourceTimeline = timeline(sourcePlayer);
+const player = el('player');
+const resultTimeline = timeline(player, 'result-', 'audio procesado');
+const effectChecks = [...effects.querySelectorAll('input[type=checkbox]')];
+const restoreDefaults = el('restore-defaults');
+const clearEffects = el('clear-effects');
+
+function updatePresetSelection() {
+  restoreDefaults.checked = effectChecks.every(input => input.checked) &&
+    Object.entries(preset).every(([key, value]) => form.elements.namedItem(key).valueAsNumber === value);
+  clearEffects.checked = effectChecks.every(input => !input.checked);
+}
+
+function selectPreset(defaults) {
+  for (const input of effectChecks) input.checked = defaults;
+  if (defaults) {
+    for (const [key, value] of Object.entries(preset)) form.elements.namedItem(key).value = value;
+  }
+  updatePresetSelection();
+}
+restoreDefaults.addEventListener('click', () => selectPreset(true));
+clearEffects.addEventListener('click', () => selectPreset(false));
+effects.addEventListener('change', updatePresetSelection);
+sourcePlayer.addEventListener('play', () => player.pause());
+player.addEventListener('play', () => sourcePlayer.pause());
 let worker, url, sourceUrl, active, decodedSource;
 
 function selectedEffects() {
@@ -17,6 +41,8 @@ function busy(value) {
   active = value;
   file.disabled = value;
   effects.disabled = value;
+  restoreDefaults.disabled = clearEffects.disabled = value;
+  el('remove-file').disabled = value;
   el('preset').disabled = value || !file.files.length;
   el('progress-box').hidden = !value;
 }
@@ -26,6 +52,7 @@ function clear() {
   el('player').load();
   el('result').hidden = true;
   if (url) URL.revokeObjectURL(url);
+  url = undefined;
 }
 function finish(message) {
   worker?.terminate();
@@ -54,9 +81,13 @@ file.onchange = () => {
   }, () => {
     if (decodedSource === pending) sourceTimeline.unavailable();
   });
-  el('filename').textContent = file.files[0]?.name || 'Elegir archivo';
+  el('remove-file').hidden = !selected;
   el('status').textContent = '';
   busy(false);
+};
+el('remove-file').onclick = () => {
+  file.value = '';
+  file.onchange();
 };
 el('cancel').onclick = () => finish('Procesamiento cancelado.');
 async function decode(source) {
@@ -89,7 +120,14 @@ async function start(settings) {
         el('player').src = el('download').href = url;
         el('download').download = source.name.replace(/\.[^.]+$/, '') + '_suno_ready.mp3';
         el('result').hidden = false;
-        return finish('MP3 listo. El archivo original se conserva.');
+        resultTimeline.reset(true);
+        const resultUrl = url;
+        decode(data.blob).then(buffer => {
+          if (url === resultUrl) resultTimeline.draw(buffer);
+        }, () => {
+          if (url === resultUrl) resultTimeline.unavailable();
+        });
+        return finish('');
       }
       el('progress').value = data.progress;
       el('status').textContent = data.message;
@@ -124,6 +162,7 @@ for (const stepper of effects.querySelectorAll('.stepper')) {
     const decimalPlaces = (input.step.split('.')[1] || '').length;
     input.value = (minimum + Math.round((clamped - minimum) / step) * step).toFixed(decimalPlaces);
     input.readOnly = true;
+    updatePresetSelection();
   };
   input.addEventListener('dblclick', begin);
   input.addEventListener('blur', commit);
@@ -147,6 +186,7 @@ for (const stepper of effects.querySelectorAll('.stepper')) {
       const bounded = Math.max(Number(input.min), Math.min(Number(input.max), next));
       const decimalPlaces = (input.step.split('.')[1] || '').length;
       input.value = bounded.toFixed(decimalPlaces);
+      updatePresetSelection();
     });
   }
 }

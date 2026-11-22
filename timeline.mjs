@@ -7,14 +7,19 @@ function time(seconds) {
   return minutes + ':' + remainder;
 }
 
-export function timeline(player) {
-  const canvas = get('waveform');
-  const seek = get('seek');
-  const play = get('play');
-  const empty = get('empty-wave');
-  const playhead = get('playhead');
-  const clock = get('clock');
+export function timeline(player, prefix = '', track = 'pista original') {
+  const resolve = id => get(prefix + id);
+  const canvas = resolve('waveform');
+  const seek = resolve('seek');
+  const play = resolve('play');
+  const empty = resolve('empty-wave');
+  const playhead = resolve('playhead');
+  const clock = resolve('clock');
   const context = canvas.getContext('2d');
+  const surface = seek.closest('.timeline');
+  seek.addEventListener('pointerdown', () => surface.classList.add('pointer-focus'));
+  seek.addEventListener('keydown', () => surface.classList.remove('pointer-focus'));
+  seek.addEventListener('blur', () => surface.classList.remove('pointer-focus'));
   let peaks;
   let frame;
 
@@ -53,7 +58,7 @@ export function timeline(player) {
     clock.textContent = timestamp + ' / ' + time(duration);
     const playing = duration && !player.paused && !player.ended;
     play.textContent = playing ? 'Ⅱ  Pausar' : '▶  Reproducir';
-    play.setAttribute('aria-label', playing ? 'Pausar pista original' : 'Reproducir pista original');
+    play.setAttribute('aria-label', playing ? ('Pausar ' + track) : ('Reproducir ' + track));
   }
 
   function animate() {

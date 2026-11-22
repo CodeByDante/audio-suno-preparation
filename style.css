@@ -104,3 +104,10 @@ h1 { font-size:clamp(32px,5vw,54px); letter-spacing:-.055em; margin:0 0 24px; }
 #cut-selection.narrow #trim-start { bottom:50%; }
 #cut-selection.narrow #trim-end { top:50%; }
 .timeline.trimming,.timeline.trimming input { cursor:ew-resize; }
+#source-upload[hidden] { display:none; }
+#join-panel { margin-top:18px; }
+#join-panel .drop { min-height:72px; }
+#join-list { list-style-position:inside; padding:0; margin:12px 0 0; }
+#join-list li { padding:8px; margin-bottom:6px; border:1px solid #514261; border-radius:8px; }
+#join-list span { overflow-wrap:anywhere; margin-right:10px; }
+#join-list button { background:#372952; color:#f6efff; padding:6px 10px; margin:2px; }

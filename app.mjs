@@ -12,6 +12,10 @@ const effectChecks = [...effects.querySelectorAll('input[type=checkbox]')];
 const restoreDefaults = el('restore-defaults');
 const clearEffects = el('clear-effects');
 const cutPanel = el('cut-panel');
+const joinInput = el('join-files');
+const joinList = el('join-list');
+const joinFiles = [];
+const modeButtons = [['mode-effects', 'effects'], ['mode-cut', 'cut'], ['mode-join', 'join']];
 const cutStart = el('cut-start');
 const cutEnd = el('cut-end');
 const cutSelection = el('cut-selection');
@@ -44,19 +48,56 @@ function updateCutSelection() {
 function setMode(next) {
   mode = next;
   const cutting = next === 'cut';
-  el('mode-effects').setAttribute('aria-pressed', String(!cutting));
-  el('mode-cut').setAttribute('aria-pressed', String(cutting));
-  el('effects-panel').hidden = cutting;
+  const joining = next === 'join';
+  for (const [id, value] of modeButtons) el(id).setAttribute('aria-pressed', String(next === value));
+  el('effects-panel').hidden = next !== 'effects';
+  el('source-upload').hidden = el('source-preview').hidden = joining;
+  el('join-panel').hidden = !joining;
+  if (joining) sourcePlayer.pause();
   cutPanel.hidden = !cutting;
-  cutPanel.disabled = !cutting || !sourceDuration;
-  el('preset').disabled = active || !file.files.length || (cutting && !sourceDuration);
-  el('preset').textContent = cutting ? 'Cortar y exportar MP3 ↗' : 'Procesar audio ↗';
+  busy(Boolean(active));
+  el('preset').textContent = {effects:'Procesar audio ↗',cut:'Cortar y exportar MP3 ↗',join:'Unir y exportar MP3 ↗'}[next];
   el('status').textContent = '';
   updateCutSelection();
 }
 
-el('mode-effects').onclick = () => setMode('effects');
-el('mode-cut').onclick = () => setMode('cut');
+for (const [id, value] of modeButtons) el(id).onclick = () => setMode(value);
+
+function renderJoinList() {
+  joinList.replaceChildren();
+  joinFiles.forEach((file, index) => {
+    const row = document.createElement('li');
+    const name = document.createElement('span');
+    name.textContent = file.name;
+    row.append(name);
+    for (const [label, title, delta] of [['↑','Subir',-1],['↓','Bajar',1],['×','Quitar',0]]) {
+      const button = document.createElement('button');
+      const position = index + delta;
+      button.type = 'button';
+      button.textContent = label;
+      button.setAttribute('aria-label', title + ' ' + file.name);
+      button.disabled = Boolean(active) || position < 0 || position >= joinFiles.length;
+      button.onclick = () => {
+        if (delta) [joinFiles[index], joinFiles[position]] = [joinFiles[position], joinFiles[index]];
+        else joinFiles.splice(index, 1);
+        clear();
+        busy(false);
+      };
+      row.append(button);
+    }
+    joinList.append(row);
+  });
+}
+
+joinInput.onchange = () => {
+  joinFiles.push(...joinInput.files);
+  joinInput.value = '';
+  if (joinFiles.length) {
+    try { audioWorker().postMessage({ prepare:true }); } catch { /* Retry when processing. */ }
+  }
+  clear();
+  busy(false);
+};
 cutStart.oninput = cutEnd.oninput = updateCutSelection;
 new ResizeObserver(updateCutSelection).observe(trimSurface);
 
@@ -142,13 +183,15 @@ function selectedEffects() {
 }
 function busy(value) {
   active = value;
-  file.disabled = value;
-  el('mode-effects').disabled = el('mode-cut').disabled = value;
+  file.disabled = value || mode === 'join';
+  joinInput.disabled = value;
+  for (const [id] of modeButtons) el(id).disabled = value;
+  if (mode === 'join') renderJoinList();
   cutPanel.disabled = value || mode !== 'cut' || !sourceDuration;
   effects.disabled = value;
   restoreDefaults.disabled = clearEffects.disabled = value;
   el('remove-file').disabled = value;
-  el('preset').disabled = value || !file.files.length || (mode === 'cut' && !sourceDuration);
+  el('preset').disabled = value || (mode === 'join' ? joinFiles.length < 2 : !file.files.length || (mode === 'cut' && !sourceDuration));
   el('progress-box').hidden = !value;
 }
 function clear() {
@@ -194,7 +237,7 @@ file.onchange = () => {
     cutStart.max = cutEnd.max = sourceDuration;
     cutEnd.value = sourceDuration;
     cutPanel.disabled = active || mode !== 'cut';
-    el('preset').disabled = active;
+    if (mode !== 'join') el('preset').disabled = active;
     updateCutSelection();
     sourceTimeline.draw(buffer);
   }, () => {
@@ -214,11 +257,12 @@ async function decode(source) {
 }
 async function start(settings) {
   const source = file.files[0];
-  if (active || !source) return;
+  const joining = mode === 'join';
+  if (active || (joining ? joinFiles.length < 2 : !source)) return;
   const cutting = mode === 'cut';
   const range = cutting ? [cutStart.valueAsNumber, cutEnd.valueAsNumber] : null;
   const enabled = selectedEffects();
-  if (!cutting && enabled.band && settings.low >= settings.high) {
+  if (!cutting && !joining && enabled.band && settings.low >= settings.high) {
     el('status').textContent = 'El corte inferior debe ser menor que el corte superior.';
     return;
   }
@@ -231,22 +275,42 @@ async function start(settings) {
   conversion = request;
   try {
     const job = audioWorker();
-    const decoded = await decodedSource;
-    if (conversion !== request) return;
-    const first = range ? Math.round(range[0] * rate) : 0;
-    const last = range ? Math.min(decoded.length, Math.round(range[1] * rate)) : decoded.length;
-    if (range && (!range.every(Number.isFinite) || range[0] < 0 || range[1] > decoded.duration || first >= last)) {
-      return finish('Elige un inicio y un final válidos dentro de la pista.');
+    let channels;
+    if (joining) {
+      const tracks = [];
+      for (let i = 0; i < joinFiles.length && conversion === request; i++) {
+        el('status').textContent = 'Leyendo pista ' + (i + 1) + ' de ' + joinFiles.length + '…';
+        tracks.push(await decode(joinFiles[i]));
+      }
+      if (conversion !== request) return;
+      const length = tracks.reduce((total, track) => total + track.length, 0);
+      channels = [0, 1].map(channel => {
+        const merged = new Float32Array(length);
+        let offset = 0;
+        for (const track of tracks) {
+          merged.set(track.getChannelData(Math.min(channel, track.numberOfChannels - 1)), offset);
+          offset += track.length;
+        }
+        return merged;
+      });
+    } else {
+      const decoded = await decodedSource;
+      if (conversion !== request) return;
+      const first = range ? Math.round(range[0] * rate) : 0;
+      const last = range ? Math.min(decoded.length, Math.round(range[1] * rate)) : decoded.length;
+      if (range && (!range.every(Number.isFinite) || range[0] < 0 || range[1] > decoded.duration || first >= last)) {
+        return finish('Elige un inicio y un final válidos dentro de la pista.');
+      }
+      channels = [0, 1].map(i => decoded.getChannelData(Math.min(i, decoded.numberOfChannels - 1)).slice(first, last));
     }
-    const channels = [0, 1].map(i => decoded.getChannelData(Math.min(i, decoded.numberOfChannels - 1)).slice(first, last));
     job.onmessage = ({data}) => {
       if (conversion !== request) return;
       if (data.error) return finish(data.error);
       if (data.blob) {
         url = URL.createObjectURL(data.blob);
         el('player').src = el('download').href = url;
-        el('download').download = source.name.replace(/\.[^.]+$/, '') + (cutting ? '_recorte.mp3' : '_suno_ready.mp3');
-        el('result-title').textContent = cutting ? 'Audio recortado' : 'Audio procesado';
+        el('download').download = joining ? 'audios-unidos.mp3' : source.name.replace(/\.[^.]+$/, '') + (cutting ? '_recorte.mp3' : '_suno_ready.mp3');
+        el('result-title').textContent = joining ? 'Audios unidos' : cutting ? 'Audio recortado' : 'Audio procesado';
         el('result').hidden = false;
         resultTimeline.reset(true);
         resultTimeline.drawPeaks(data.peaks);
@@ -256,7 +320,7 @@ async function start(settings) {
       el('status').textContent = data.message;
     };
     job.onerror = () => finish('No se pudo iniciar el motor de audio.', true);
-    job.postMessage({ channels, settings, enabled, cutting }, channels.map(channel => channel.buffer));
+    job.postMessage({ channels, settings, enabled, cutting: cutting || joining }, channels.map(channel => channel.buffer));
   } catch {
     if (conversion === request) finish('No se pudo leer el audio. Prueba con un MP3, WAV o FLAC válido.');
   }

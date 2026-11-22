@@ -1,10 +1,12 @@
 import { preset, rate } from './settings.mjs';
+import { timeline } from './timeline.mjs';
 const el = id => document.getElementById(id);
 const form = el('processor');
 const file = el('file');
 const effects = el('effects');
 const sourcePlayer = el('source-player');
-let worker, url, sourceUrl, active;
+const sourceTimeline = timeline(sourcePlayer);
+let worker, url, sourceUrl, active, decodedSource;
 
 function selectedEffects() {
   return Object.fromEntries([...effects.querySelectorAll('input')].map(input => [
@@ -44,12 +46,22 @@ file.onchange = () => {
     sourcePlayer.removeAttribute('src');
     sourcePlayer.load();
   }
-  el('source-preview').hidden = !selected;
+  sourceTimeline.reset(Boolean(selected));
+  decodedSource = selected ? decode(selected) : undefined;
+  const pending = decodedSource;
+  pending?.then(buffer => {
+    if (decodedSource === pending) sourceTimeline.draw(buffer);
+  }, () => {
+    if (decodedSource === pending) sourceTimeline.unavailable();
+  });
   el('filename').textContent = file.files[0]?.name || 'Elegir archivo';
   el('status').textContent = '';
   busy(false);
 };
 el('cancel').onclick = () => finish('Procesamiento cancelado.');
+async function decode(source) {
+  return new OfflineAudioContext(2, 1, rate).decodeAudioData(await source.arrayBuffer());
+}
 async function start(settings) {
   const source = file.files[0];
   if (active || !source) return;
@@ -66,7 +78,7 @@ async function start(settings) {
   const job = new Worker('./worker.js?v=2');
   worker = job;
   try {
-    const decoded = await new OfflineAudioContext(2, 1, rate).decodeAudioData(await source.arrayBuffer());
+    const decoded = await decodedSource;
     if (worker !== job) return;
     const channels = [0, 1].map(i => decoded.getChannelData(Math.min(i, decoded.numberOfChannels - 1)).slice());
     job.onmessage = ({data}) => {

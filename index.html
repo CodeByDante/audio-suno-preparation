@@ -1,11 +1,13 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Audio Suno Preparation</title><link rel="stylesheet" href="./style.css?v=2"></head>
+<title>Audio Suno Preparation</title><link rel="stylesheet" href="./style.css?v=3"></head>
 <body><header><span class="mark" aria-hidden="true">♫</span> Audio Suno Preparation</header>
-<main><h1>Audio con<br><em>vinilo antiguo.</em></h1><p class="intro">Ajusta el tono y la velocidad, añade textura de vinilo y exporta un MP3 estéreo de 320 kbps.</p>
+<main><h1>Editor de audio</h1>
 <form class="panel" id="processor">
-<label class="drop"><input id="file" type="file" accept="audio/*,video/mp4,.flac,.wav,.mp3,.mp4" required><span id="filename">Elegir archivo</span><small>MP3, WAV, FLAC o MP4 con audio compatible</small></label>
-<div id="source-preview" hidden><label for="source-player">Pista original</label><audio id="source-player" controls preload="metadata" aria-label="Reproductor de la pista original"></audio></div>
+<div class="editor-header">
+<label class="drop"><input id="file" type="file" accept="audio/*,video/mp4,.flac,.wav,.mp3,.mp4" required><span>Elegir archivo</span></label>
+<span id="filename">MP3, WAV, FLAC o MP4</span>
+</div>
 <fieldset id="effects"><legend>Efectos activos</legend>
 <label><input type="checkbox" name="effect-pitch" checked> Tono · −12 semitonos</label>
 <label><input type="checkbox" name="effect-speed" checked> Velocidad · 0.5×</label>
@@ -17,6 +19,19 @@
 <label><input type="checkbox" name="effect-wow" checked> Fluctuación de vinilo</label>
 <label><input type="checkbox" name="effect-limiter" checked> Limitador · −1 dBFS</label>
 </fieldset>
+<section id="source-preview" aria-label="Pista original">
+<div class="timeline">
+<canvas id="waveform" aria-hidden="true"></canvas>
+<div id="playhead" aria-hidden="true"></div>
+<input id="seek" type="range" min="0" max="0" step=".01" value="0" aria-label="Posición en la pista original" disabled>
+<span id="empty-wave">Selecciona un archivo para ver su forma de onda</span>
+</div>
+<div class="transport">
+  <button id="play" type="button" aria-label="Reproducir pista original" disabled>▶ <span>Reproducir</span></button>
+  <output id="clock" aria-label="Tiempo transcurrido y duración">00:00.0 / 00:00.0</output>
+</div>
+<audio id="source-player" hidden preload="metadata"></audio>
+</section>
 <div class="actions"><button id="preset" type="button" disabled>Procesar con valores por defecto ↗</button></div>
 <details><summary>Personalizar efectos</summary>
 <div class="settings">
@@ -37,4 +52,4 @@
 <p id="status" role="status"></p>
 <div id="result" hidden><audio id="player" controls preload="metadata"></audio><a id="download" download>Descargar MP3 ↓</a></div>
 </form><footer>El audio se procesa en tu navegador y el original se conserva.</footer></main>
-<script type="module" src="./app.mjs?v=2"></script></body></html>
+<script type="module" src="./app.mjs?v=3"></script></body></html>

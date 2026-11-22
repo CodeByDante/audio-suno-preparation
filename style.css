@@ -87,3 +87,11 @@ h1 { font-size:clamp(32px,5vw,54px); letter-spacing:-.055em; margin:0 0 24px; }
 #empty-wave { width:100%; border-radius:0; font-weight:500; }
 #empty-wave:not(:disabled) { pointer-events:auto; cursor:pointer; }
 #empty-wave:disabled { opacity:1; }
+.mode-picker { display:flex; gap:8px; margin-top:16px; }
+.mode-picker button,#cut-panel button { background:#2b2238; color:#f6efff; }
+.mode-picker button[aria-pressed=true] { background:var(--accent); color:#20152d; }
+#cut-panel { margin:18px 0 0; padding:12px; border:1px solid #514261; border-radius:10px; }
+#cut-panel:not([hidden]) { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+#cut-panel input { width:8ch; background:#15111e; border:1px solid #544164; color:inherit; padding:8px; border-radius:6px; }
+#cut-panel button { padding:8px; }
+#cut-selection { position:absolute; inset-block:0; background:#c5a2ff38; border-inline:2px solid #c5a2ff; pointer-events:none; }

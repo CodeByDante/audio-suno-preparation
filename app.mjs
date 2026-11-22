@@ -11,6 +11,47 @@ const resultTimeline = timeline(player, 'result-', 'audio procesado');
 const effectChecks = [...effects.querySelectorAll('input[type=checkbox]')];
 const restoreDefaults = el('restore-defaults');
 const clearEffects = el('clear-effects');
+const cutPanel = el('cut-panel');
+const cutStart = el('cut-start');
+const cutEnd = el('cut-end');
+const cutSelection = el('cut-selection');
+let mode = 'effects';
+let sourceDuration = 0;
+
+function updateCutSelection() {
+  const start = cutStart.valueAsNumber;
+  const end = cutEnd.valueAsNumber;
+  const valid = Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end > start && end <= sourceDuration;
+  cutSelection.hidden = mode !== 'cut' || !valid;
+  if (valid) {
+    cutSelection.style.left = 100 * start / sourceDuration + '%';
+    cutSelection.style.width = 100 * (end - start) / sourceDuration + '%';
+  }
+}
+
+function setMode(next) {
+  mode = next;
+  const cutting = next === 'cut';
+  el('mode-effects').setAttribute('aria-pressed', String(!cutting));
+  el('mode-cut').setAttribute('aria-pressed', String(cutting));
+  el('effects-panel').hidden = cutting;
+  cutPanel.hidden = !cutting;
+  cutPanel.disabled = !cutting || !sourceDuration;
+  el('preset').disabled = active || !file.files.length || (cutting && !sourceDuration);
+  el('preset').textContent = cutting ? 'Cortar y exportar MP3 ↗' : 'Procesar audio ↗';
+  el('status').textContent = '';
+  updateCutSelection();
+}
+
+el('mode-effects').onclick = () => setMode('effects');
+el('mode-cut').onclick = () => setMode('cut');
+cutStart.oninput = cutEnd.oninput = updateCutSelection;
+for (const [button, input] of [['mark-start', cutStart], ['mark-end', cutEnd]]) {
+  el(button).onclick = () => {
+    input.value = Math.min(sourceDuration, Math.round(sourcePlayer.currentTime * 1000) / 1000);
+    updateCutSelection();
+  };
+}
 
 function updatePresetSelection() {
   restoreDefaults.checked = effectChecks.every(input => input.checked) &&
@@ -33,7 +74,7 @@ player.addEventListener('play', () => sourcePlayer.pause());
 let worker, url, sourceUrl, active, decodedSource, conversion;
 
 function audioWorker() {
-  return worker ??= new Worker('./worker.js?v=8');
+  return worker ??= new Worker('./worker.js?v=9');
 }
 
 function selectedEffects() {
@@ -44,10 +85,12 @@ function selectedEffects() {
 function busy(value) {
   active = value;
   file.disabled = value;
+  el('mode-effects').disabled = el('mode-cut').disabled = value;
+  cutPanel.disabled = value || mode !== 'cut' || !sourceDuration;
   effects.disabled = value;
   restoreDefaults.disabled = clearEffects.disabled = value;
   el('remove-file').disabled = value;
-  el('preset').disabled = value || !file.files.length;
+  el('preset').disabled = value || !file.files.length || (mode === 'cut' && !sourceDuration);
   el('progress-box').hidden = !value;
 }
 function clear() {
@@ -72,6 +115,9 @@ file.onchange = () => {
   sourcePlayer.pause();
   if (sourceUrl) URL.revokeObjectURL(sourceUrl);
   const selected = file.files[0];
+  sourceDuration = 0;
+  cutStart.value = cutEnd.value = 0;
+  updateCutSelection();
   if (selected) {
     sourceUrl = URL.createObjectURL(selected);
     sourcePlayer.src = sourceUrl;
@@ -85,7 +131,14 @@ file.onchange = () => {
   decodedSource = selected ? decode(selected) : undefined;
   const pending = decodedSource;
   pending?.then(buffer => {
-    if (decodedSource === pending) sourceTimeline.draw(buffer);
+    if (decodedSource !== pending) return;
+    sourceDuration = buffer.duration;
+    cutStart.max = cutEnd.max = sourceDuration;
+    cutEnd.value = sourceDuration;
+    cutPanel.disabled = active || mode !== 'cut';
+    el('preset').disabled = active;
+    updateCutSelection();
+    sourceTimeline.draw(buffer);
   }, () => {
     if (decodedSource === pending) sourceTimeline.unavailable();
   });
@@ -104,8 +157,10 @@ async function decode(source) {
 async function start(settings) {
   const source = file.files[0];
   if (active || !source) return;
+  const cutting = mode === 'cut';
+  const range = cutting ? [cutStart.valueAsNumber, cutEnd.valueAsNumber] : null;
   const enabled = selectedEffects();
-  if (enabled.band && settings.low >= settings.high) {
+  if (!cutting && enabled.band && settings.low >= settings.high) {
     el('status').textContent = 'El corte inferior debe ser menor que el corte superior.';
     return;
   }
@@ -120,14 +175,20 @@ async function start(settings) {
     const job = audioWorker();
     const decoded = await decodedSource;
     if (conversion !== request) return;
-    const channels = [0, 1].map(i => decoded.getChannelData(Math.min(i, decoded.numberOfChannels - 1)).slice());
+    const first = range ? Math.round(range[0] * rate) : 0;
+    const last = range ? Math.min(decoded.length, Math.round(range[1] * rate)) : decoded.length;
+    if (range && (!range.every(Number.isFinite) || range[0] < 0 || range[1] > decoded.duration || first >= last)) {
+      return finish('Elige un inicio y un final válidos dentro de la pista.');
+    }
+    const channels = [0, 1].map(i => decoded.getChannelData(Math.min(i, decoded.numberOfChannels - 1)).slice(first, last));
     job.onmessage = ({data}) => {
       if (conversion !== request) return;
       if (data.error) return finish(data.error);
       if (data.blob) {
         url = URL.createObjectURL(data.blob);
         el('player').src = el('download').href = url;
-        el('download').download = source.name.replace(/\.[^.]+$/, '') + '_suno_ready.mp3';
+        el('download').download = source.name.replace(/\.[^.]+$/, '') + (cutting ? '_recorte.mp3' : '_suno_ready.mp3');
+        el('result-title').textContent = cutting ? 'Audio recortado' : 'Audio procesado';
         el('result').hidden = false;
         resultTimeline.reset(true);
         resultTimeline.drawPeaks(data.peaks);
@@ -137,7 +198,7 @@ async function start(settings) {
       el('status').textContent = data.message;
     };
     job.onerror = () => finish('No se pudo iniciar el motor de audio.', true);
-    job.postMessage({ channels, settings, enabled }, channels.map(channel => channel.buffer));
+    job.postMessage({ channels, settings, enabled, cutting }, channels.map(channel => channel.buffer));
   } catch {
     if (conversion === request) finish('No se pudo leer el audio. Prueba con un MP3, WAV o FLAC válido.');
   }

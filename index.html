@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Audio Suno Preparation</title><link rel="stylesheet" href="./style.css?v=7"></head>
+<title>Audio Suno Preparation</title><link rel="stylesheet" href="./style.css?v=9"></head>
 <body><header><span class="mark" aria-hidden="true">♫</span> Audio Suno Preparation</header>
 <main>
 <form class="panel" id="processor">
@@ -8,6 +8,11 @@
 <label class="drop"><input id="file" type="file" accept="audio/*,video/mp4,.flac,.wav,.mp3,.mp4" required><span>Elegir archivo</span></label>
 <button id="remove-file" type="button" hidden>Quitar archivo</button>
 </div>
+<div class="mode-picker" role="group" aria-label="Modo de edición">
+<button id="mode-effects" type="button" aria-pressed="true">Efectos</button>
+<button id="mode-cut" type="button" aria-pressed="false">Cortar audio</button>
+</div>
+<div id="effects-panel">
 <div class="effect-presets" role="group" aria-label="Selección de efectos">
 <label><input type="radio" id="restore-defaults" name="effect-selection" checked> Valores por defecto</label>
 <label><input type="radio" id="clear-effects" name="effect-selection"> Desmarcar todo</label>
@@ -23,9 +28,20 @@
 <div class="effect"><label><input type="checkbox" name="effect-wow" checked> Fluctuación</label><div class="values"><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir nivel de fluctuación">−</button><input name="wow" type="number" min="0" max="100" step="1" value="12" aria-label="Nivel de fluctuación (%)" title="Doble clic o Enter para editar" readonly><span>%</span><button type="button" data-step="1" aria-label="Aumentar nivel de fluctuación">+</button></div></div></div>
 <div class="effect"><label><input type="checkbox" name="effect-limiter" checked> Limitador</label><div class="values"><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir techo del limitador">−</button><input name="ceiling" type="number" min="-12" max="-.1" step=".1" value="-1" aria-label="Techo del limitador (dBFS)" title="Doble clic o Enter para editar" readonly><span>dBFS</span><button type="button" data-step="1" aria-label="Aumentar techo del limitador">+</button></div></div></div>
 </fieldset>
+</div>
+<fieldset id="cut-panel" hidden disabled>
+<legend>Tramo del audio original</legend>
+<label for="cut-start">Inicio (segundos)</label>
+<input id="cut-start" type="number" min="0" step="any" value="0">
+<button id="mark-start" type="button">Marcar inicio aquí</button>
+<label for="cut-end">Final (segundos)</label>
+<input id="cut-end" type="number" min="0" step="any" value="0">
+<button id="mark-end" type="button">Marcar final aquí</button>
+</fieldset>
 <section id="source-preview" aria-label="Pista original">
 <div class="timeline">
 <canvas id="waveform" aria-hidden="true"></canvas>
+<div id="cut-selection" hidden aria-hidden="true"></div>
 <div id="playhead" aria-hidden="true"></div>
 <input id="seek" type="range" min="0" max="0" step=".01" value="0" aria-label="Posición en la pista original" disabled>
 <button id="empty-wave" type="button">Haz clic para cargar un audio</button>
@@ -54,4 +70,4 @@
 <audio id="player" hidden preload="metadata"></audio>
 </section>
 </form><footer>El audio se procesa en tu navegador y el original se conserva.</footer></main>
-<script type="module" src="./app.mjs?v=8"></script></body></html>
+<script type="module" src="./app.mjs?v=9"></script></body></html>

@@ -201,18 +201,18 @@ function loadEncoder() {
   if (typeof lamejs === 'undefined') importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
 }
 
-self.onmessage = ({data: {channels, settings, enabled, prepare}}) => {
+self.onmessage = ({data: {channels, settings, enabled, prepare, cutting}}) => {
   if (prepare) {
     try { loadEncoder(); } catch { /* The next conversion can retry. */ }
     return;
   }
   try {
-    progress(.03, 'Aplicando tono, velocidad, reverb y vinilo…');
-    const processed = processAudio(channels, settings, enabled);
+    if (!cutting) progress(.03, 'Aplicando tono, velocidad, reverb y vinilo…');
+    const processed = cutting ? channels : processAudio(channels, settings, enabled);
     progress(.18, 'Preparando el MP3…');
     loadEncoder();
     const peaks = new Float32Array(Math.min(2048, processed[0].length));
-    const blob = encode(processed, settings.ceiling, enabled?.limiter !== false, peaks);
+    const blob = encode(processed, settings.ceiling, !cutting && enabled?.limiter !== false, peaks);
     postMessage({blob, peaks}, [peaks.buffer]);
   } catch (error) {
     postMessage({error: 'No se pudo procesar el audio. ' + (error.message || String(error))});

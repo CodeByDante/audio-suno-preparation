@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Audio Suno Preparation</title><link rel="stylesheet" href="./style.css?v=9"></head>
+<title>Audio Suno Preparation</title><link rel="stylesheet" href="./style.css?v=10"></head>
 <body><header><span class="mark" aria-hidden="true">♫</span> Audio Suno Preparation</header>
 <main>
 <form class="panel" id="processor">
@@ -41,7 +41,10 @@
 <section id="source-preview" aria-label="Pista original">
 <div class="timeline">
 <canvas id="waveform" aria-hidden="true"></canvas>
-<div id="cut-selection" hidden aria-hidden="true"></div>
+<div id="cut-selection" hidden>
+  <span id="trim-start" class="trim-handle" role="slider" tabindex="0" aria-label="Inicio del recorte" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"></span>
+  <span id="trim-end" class="trim-handle" role="slider" tabindex="0" aria-label="Final del recorte" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"></span>
+</div>
 <div id="playhead" aria-hidden="true"></div>
 <input id="seek" type="range" min="0" max="0" step=".01" value="0" aria-label="Posición en la pista original" disabled>
 <button id="empty-wave" type="button">Haz clic para cargar un audio</button>
@@ -70,4 +73,4 @@
 <audio id="player" hidden preload="metadata"></audio>
 </section>
 </form><footer>El audio se procesa en tu navegador y el original se conserva.</footer></main>
-<script type="module" src="./app.mjs?v=9"></script></body></html>
+<script type="module" src="./app.mjs?v=10"></script></body></html>

@@ -95,3 +95,12 @@ h1 { font-size:clamp(32px,5vw,54px); letter-spacing:-.055em; margin:0 0 24px; }
 #cut-panel input { width:8ch; background:#15111e; border:1px solid #544164; color:inherit; padding:8px; border-radius:6px; }
 #cut-panel button { padding:8px; }
 #cut-selection { position:absolute; inset-block:0; background:#c5a2ff38; border-inline:2px solid #c5a2ff; pointer-events:none; }
+#cut-selection { z-index:2; border-inline:0; border-block:2px solid #bd9af7; }
+.trim-handle { position:absolute; top:-2px; bottom:-2px; width:20px; border-radius:5px; background:#d6b9ff; color:#342449; pointer-events:auto; cursor:ew-resize; touch-action:none; }
+#trim-start { left:0; }
+#trim-end { right:0; }
+.trim-handle::after { content:''; position:absolute; left:50%; top:50%; width:5px; height:22px; border-inline:1px solid currentColor; transform:translate(-50%,-50%); }
+.trim-handle:focus-visible { outline:2px solid white; outline-offset:-3px; }
+#cut-selection.narrow #trim-start { bottom:50%; }
+#cut-selection.narrow #trim-end { top:50%; }
+.timeline.trimming,.timeline.trimming input { cursor:ew-resize; }

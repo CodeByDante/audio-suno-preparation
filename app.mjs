@@ -15,6 +15,9 @@ const cutPanel = el('cut-panel');
 const cutStart = el('cut-start');
 const cutEnd = el('cut-end');
 const cutSelection = el('cut-selection');
+const trimStart = el('trim-start');
+const trimEnd = el('trim-end');
+const trimSurface = cutSelection.closest('.timeline');
 let mode = 'effects';
 let sourceDuration = 0;
 
@@ -25,7 +28,16 @@ function updateCutSelection() {
   cutSelection.hidden = mode !== 'cut' || !valid;
   if (valid) {
     cutSelection.style.left = 100 * start / sourceDuration + '%';
-    cutSelection.style.width = 100 * (end - start) / sourceDuration + '%';
+    const fraction = (end - start) / sourceDuration;
+    cutSelection.style.width = 100 * fraction + '%';
+    cutSelection.classList.toggle('narrow', fraction * trimSurface.clientWidth < 42);
+    trimStart.setAttribute('aria-valuemax', String(end - 1 / rate));
+    trimEnd.setAttribute('aria-valuemin', String(start + 1 / rate));
+    trimEnd.setAttribute('aria-valuemax', String(sourceDuration));
+    for (const [handle, seconds] of [[trimStart, start], [trimEnd, end]]) {
+      handle.setAttribute('aria-valuenow', String(seconds));
+      handle.setAttribute('aria-valuetext', seconds.toFixed(3) + ' segundos');
+    }
   }
 }
 
@@ -46,6 +58,52 @@ function setMode(next) {
 el('mode-effects').onclick = () => setMode('effects');
 el('mode-cut').onclick = () => setMode('cut');
 cutStart.oninput = cutEnd.oninput = updateCutSelection;
+new ResizeObserver(updateCutSelection).observe(trimSurface);
+
+function moveTrimEdge(input, seconds) {
+  const isStart = input === cutStart;
+  const other = isStart ? cutEnd : cutStart;
+  const lastFrame = Math.round(sourceDuration * rate);
+  const otherFrame = Math.round(other.valueAsNumber * rate);
+  const minimum = isStart ? 0 : otherFrame + 1;
+  const maximum = isStart ? otherFrame - 1 : lastFrame;
+  const frame = Math.max(minimum, Math.min(maximum, Math.round(seconds * rate)));
+  const milliseconds = Math.round(frame * 1000 / rate) / 1000;
+  // Keep a sample-accurate boundary if millisecond rounding would collapse the cut.
+  const roundedFrame = Math.round(milliseconds * rate);
+  input.value = roundedFrame >= minimum && roundedFrame <= maximum && milliseconds <= sourceDuration
+    ? milliseconds : frame / rate;
+  updateCutSelection();
+}
+
+for (const [handle, input] of [[trimStart, cutStart], [trimEnd, cutEnd]]) {
+  let drag;
+  handle.addEventListener('pointerdown', event => {
+    if (active || !event.isPrimary || event.button !== 0) return;
+    drag = { id:event.pointerId, x:event.clientX, start:input.valueAsNumber };
+    handle.setPointerCapture(event.pointerId);
+    trimSurface.classList.add('trimming');
+    sourcePlayer.pause();
+    event.preventDefault();
+  });
+  handle.addEventListener('pointermove', event => {
+    if (!drag || event.pointerId !== drag.id) return;
+    const width = trimSurface.getBoundingClientRect().width;
+    if (width) moveTrimEdge(input, drag.start + (event.clientX - drag.x) * sourceDuration / width);
+  });
+  handle.addEventListener('lostpointercapture', () => {
+    drag = undefined;
+    trimSurface.classList.remove('trimming');
+  });
+  handle.addEventListener('keydown', event => {
+    if (active) return;
+    const direction = {ArrowLeft:-1,ArrowDown:-1,ArrowRight:1,ArrowUp:1}[event.key];
+    if (!direction) return;
+    event.preventDefault();
+    moveTrimEdge(input, input.valueAsNumber + direction * (event.shiftKey ? 1 : .01));
+  });
+}
+
 for (const [button, input] of [['mark-start', cutStart], ['mark-end', cutEnd]]) {
   el(button).onclick = () => {
     input.value = Math.min(sourceDuration, Math.round(sourcePlayer.currentTime * 1000) / 1000);

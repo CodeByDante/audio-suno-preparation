@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Audio Suno Preparation</title><link rel="stylesheet" href="./style.css"></head>
+<body><header><span class="mark" aria-hidden="true">♫</span> Audio Suno Preparation</header>
+<main><h1>Audio con<br><em>vinilo antiguo.</em></h1><p class="intro">Ajusta el tono y la velocidad, añade textura de vinilo y exporta un MP3 estéreo de 320 kbps.</p>
+<form class="panel" id="processor">
+<label class="drop"><input id="file" type="file" accept="audio/*,video/mp4,.flac,.wav,.mp3,.mp4" required><span id="filename">Elegir archivo</span><small>MP3, WAV, FLAC o MP4 con audio compatible</small></label>
+<div class="actions"><button id="preset" type="button" disabled>Procesar con valores por defecto ↗</button></div>
+<details><summary>Personalizar efectos</summary>
+<div class="settings">
+<label>Tono (semitonos)<input name="pitch" type="number" min="-24" max="12" step="1" value="-12" required></label>
+<label>Velocidad (×)<input name="speed" type="number" min=".25" max="2" step=".01" value=".5" required></label>
+<label>Corte inferior (Hz)<input name="low" type="number" min="20" max="18000" step="1" value="220" required></label>
+<label>Corte superior (Hz)<input name="high" type="number" min="21" max="20000" step="1" value="1900" required></label>
+<label>Centro del realce (Hz)<input name="eq" type="number" min="20" max="20000" step="1" value="600" required></label>
+<label>Ganancia del realce (dB)<input name="boost" type="number" min="-18" max="18" step=".1" value="5.5" required></label>
+<label>Cola de reverb (s)<input name="decay" type="number" min=".2" max="8" step=".1" value="3.8" required></label>
+<label>Mezcla de reverb (%)<input name="wet" type="number" min="0" max="60" step="1" value="22" required></label>
+<label>Siseo (%)<input name="hiss" type="number" min="0" max="100" step="1" value="18" required></label>
+<label>Crujidos y chasquidos (%)<input name="crackle" type="number" min="0" max="100" step="1" value="22" required></label>
+<label>Fluctuación de vinilo (%)<input name="wow" type="number" min="0" max="100" step="1" value="12" required></label>
+<label>Techo del limitador (dBFS)<input name="ceiling" type="number" min="-12" max="-.1" step=".1" value="-1" required></label>
+</div><button type="submit" id="custom" disabled>Procesar con mis ajustes</button></details>
+<div id="progress-box" hidden><progress id="progress" max="1"></progress><button id="cancel" type="button">Cancelar</button></div>
+<p id="status" role="status"></p>
+<div id="result" hidden><audio id="player" controls preload="metadata"></audio><a id="download" download>Descargar MP3 ↓</a></div>
+</form><footer>El audio se procesa en tu navegador y el original se conserva.</footer></main>
+<script type="module" src="./app.mjs"></script></body></html>

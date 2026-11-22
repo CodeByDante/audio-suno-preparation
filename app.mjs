@@ -1,5 +1,5 @@
 import { preset, rate } from './settings.mjs';
-import { timeline } from './timeline.mjs?v=7';
+import { timeline } from './timeline.mjs?v=8';
 const el = id => document.getElementById(id);
 const form = el('processor');
 const file = el('file');
@@ -30,7 +30,11 @@ clearEffects.addEventListener('click', () => selectPreset(false));
 effects.addEventListener('change', updatePresetSelection);
 sourcePlayer.addEventListener('play', () => player.pause());
 player.addEventListener('play', () => sourcePlayer.pause());
-let worker, url, sourceUrl, active, decodedSource;
+let worker, url, sourceUrl, active, decodedSource, conversion;
+
+function audioWorker() {
+  return worker ??= new Worker('./worker.js?v=8');
+}
 
 function selectedEffects() {
   return Object.fromEntries([...effects.querySelectorAll('input[type=checkbox]')].map(input => [
@@ -54,9 +58,12 @@ function clear() {
   if (url) URL.revokeObjectURL(url);
   url = undefined;
 }
-function finish(message) {
-  worker?.terminate();
-  worker = undefined;
+function finish(message, terminate = false) {
+  if (terminate) {
+    worker?.terminate();
+    worker = undefined;
+  }
+  conversion = undefined;
   busy(false);
   el('status').textContent = message;
 }
@@ -68,6 +75,7 @@ file.onchange = () => {
   if (selected) {
     sourceUrl = URL.createObjectURL(selected);
     sourcePlayer.src = sourceUrl;
+    try { audioWorker().postMessage({ prepare: true }); } catch { /* Retry when processing. */ }
   } else {
     sourceUrl = undefined;
     sourcePlayer.removeAttribute('src');
@@ -89,7 +97,7 @@ el('remove-file').onclick = () => {
   file.value = '';
   file.onchange();
 };
-el('cancel').onclick = () => finish('Procesamiento cancelado.');
+el('cancel').onclick = () => finish('Procesamiento cancelado.', true);
 async function decode(source) {
   return new OfflineAudioContext(2, 1, rate).decodeAudioData(await source.arrayBuffer());
 }
@@ -106,14 +114,15 @@ async function start(settings) {
   busy(true);
   el('progress').removeAttribute('value');
   el('status').textContent = 'Leyendo el archivo…';
-  const job = new Worker('./worker.js?v=2');
-  worker = job;
+  const request = Symbol();
+  conversion = request;
   try {
+    const job = audioWorker();
     const decoded = await decodedSource;
-    if (worker !== job) return;
+    if (conversion !== request) return;
     const channels = [0, 1].map(i => decoded.getChannelData(Math.min(i, decoded.numberOfChannels - 1)).slice());
     job.onmessage = ({data}) => {
-      if (worker !== job) return;
+      if (conversion !== request) return;
       if (data.error) return finish(data.error);
       if (data.blob) {
         url = URL.createObjectURL(data.blob);
@@ -121,21 +130,16 @@ async function start(settings) {
         el('download').download = source.name.replace(/\.[^.]+$/, '') + '_suno_ready.mp3';
         el('result').hidden = false;
         resultTimeline.reset(true);
-        const resultUrl = url;
-        decode(data.blob).then(buffer => {
-          if (url === resultUrl) resultTimeline.draw(buffer);
-        }, () => {
-          if (url === resultUrl) resultTimeline.unavailable();
-        });
+        resultTimeline.drawPeaks(data.peaks);
         return finish('');
       }
       el('progress').value = data.progress;
       el('status').textContent = data.message;
     };
-    job.onerror = () => finish('No se pudo iniciar el motor de audio.');
+    job.onerror = () => finish('No se pudo iniciar el motor de audio.', true);
     job.postMessage({ channels, settings, enabled }, channels.map(channel => channel.buffer));
   } catch {
-    if (worker === job) finish('No se pudo leer el audio. Prueba con un MP3, WAV o FLAC válido.');
+    if (conversion === request) finish('No se pudo leer el audio. Prueba con un MP3, WAV o FLAC válido.');
   }
 }
 form.onsubmit = event => {

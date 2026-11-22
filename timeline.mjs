@@ -86,6 +86,13 @@ export function timeline(player, prefix = '', track = 'pista original', chooseFi
   });
   new ResizeObserver(paint).observe(canvas);
 
+  function normalize() {
+    const maximum = Math.max(.01, ...peaks);
+    for (let i = 0; i < peaks.length; i++) peaks[i] /= maximum;
+    empty.hidden = true;
+    paint();
+  }
+
   return {
     reset(selected) {
       hasSource = !chooseFile || selected;
@@ -96,6 +103,10 @@ export function timeline(player, prefix = '', track = 'pista original', chooseFi
       paint();
       update();
     },
+    drawPeaks(values) {
+      peaks = values;
+      normalize();
+    },
     draw(buffer) {
       const count = Math.min(2048, buffer.length);
       peaks = new Float32Array(count);
@@ -104,13 +115,11 @@ export function timeline(player, prefix = '', track = 'pista original', chooseFi
         for (let n = 0; n < count; n++) {
           const first = Math.floor(n * buffer.length / count);
           const last = Math.floor((n + 1) * buffer.length / count);
-          for (let i = first; i < last; i++) peaks[n] = Math.max(peaks[n], Math.abs(samples[i]));
+          const stride = Math.max(1, Math.floor((last - first) / 32));
+          for (let i = first; i < last; i += stride) peaks[n] = Math.max(peaks[n], Math.abs(samples[i]));
         }
       }
-      const maximum = Math.max(.01, ...peaks);
-      for (let i = 0; i < count; i++) peaks[i] /= maximum;
-      empty.hidden = true;
-      paint();
+      normalize();
     },
     unavailable() {
       empty.textContent = 'No se pudo leer la forma de onda de este archivo.';

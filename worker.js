@@ -15,6 +15,7 @@ function stretch(channels, ratio) {
   const length = Math.max(1, Math.round(channels[0].length / ratio));
   const result = channels.map(() => new Float32Array(length));
   const weight = new Float32Array(length);
+  const window = Float32Array.from({ length: grain }, (_, i) => Math.sin(Math.PI * (i + .5) / grain) ** 2);
   let previous = 0;
   for (let target = 0; target < length; target += hop) {
     const expected = Math.round(target * ratio);
@@ -35,7 +36,7 @@ function stretch(channels, ratio) {
       }
     }
     for (let j = 0; j < grain && target + j < length; j++) {
-      const w = Math.sin(Math.PI * (j + .5) / grain) ** 2;
+      const w = window[j];
       weight[target + j] += w;
       for (let c = 0; c < 2; c++) result[c][target + j] += (channels[c][source + j] || 0) * w;
     }
@@ -78,7 +79,8 @@ function reverb(decay, channel) {
       const delayed = line.samples[line.index];
       line.damped += .28 * (delayed - line.damped);
       line.samples[line.index] = input + line.feedback * line.damped;
-      line.index = (line.index + 1) % line.samples.length;
+      line.index++;
+      if (line.index === line.samples.length) line.index = 0;
       output += delayed;
     }
     return output / delays.length;
@@ -94,13 +96,15 @@ function processAudio(channels, s, enabled = {}) {
   const length = Math.max(1, Math.round(channels[0].length / speed));
   const output = [new Float32Array(length), new Float32Array(length)];
   const antiAlias = 19500 / Math.max(1, pitchRatio);
+  const useBand = has('band');
+  const useEq = has('eq');
   const tone = output.map(() => {
     const highpass = filter('highpass', s.low);
     const lowpass = filter('lowpass', s.high);
     const peak = filter('peak', s.eq, s.boost);
     return input => {
-      const band = has('band') ? lowpass(highpass(input)) : input;
-      return has('eq') ? peak(band) : band;
+      const band = useBand ? lowpass(highpass(input)) : input;
+      return useEq ? peak(band) : band;
     };
   });
   if (pitchRatio > 1) {
@@ -110,12 +114,20 @@ function processAudio(channels, s, enabled = {}) {
       for (let i = 0; i < channel.length; i++) channel[i] = second(cutoff(channel[i]));
     }
   }
-  const rooms = output.map((_, c) => reverb(s.decay, c));
+  const wet = has('reverb') ? s.wet / 100 : 0;
+  const rooms = wet ? output.map((_, c) => reverb(s.decay, c)) : null;
   const noiseFilter = filter('lowpass', 6400);
   const noiseBass = filter('highpass', 260);
-  const wet = has('reverb') ? s.wet / 100 : 0;
+  const wowDepth = has('wow') ? s.wow * rate / 100 : 0;
+  const hissLevel = has('hiss') ? s.hiss * .22 / 100 : 0;
+  const crackleLevel = has('crackle') ? s.crackle / 100 : 0;
+  const dryMix = 1 - wet * .4;
   let power = 0;
-  for (const channel of channels) for (const sample of channel) power += sample * sample;
+  if (hissLevel || crackleLevel) {
+    for (const channel of channels) {
+      for (let i = 0; i < channel.length; i++) power += channel[i] * channel[i];
+    }
+  }
   const reference = Math.max(.005, Math.min(.3, Math.sqrt(power / (2 * channels[0].length))));
   let randomState = 381769;
   function noise() {
@@ -126,63 +138,82 @@ function processAudio(channels, s, enabled = {}) {
   let prevPop = 0;
   for (let i = 0; i < length; i++) {
     const t = i / rate;
-    const wow = (has('wow') ? s.wow : 0) / 100 * rate * (.014 * Math.sin(t * 2.4) + .0008 * Math.sin(t * 41));
+    const wow = wowDepth ? wowDepth * (.014 * Math.sin(t * 2.4) + .0008 * Math.sin(t * 41)) : 0;
     const position = Math.max(0, Math.min(source[0].length - 1, (i + wow) * pitchRatio));
-    if (has('crackle') && noise() < 22 / rate) pop += (noise() * 2 - 1) * reference * s.crackle / 100;
+    if (crackleLevel && noise() < 22 / rate) pop += (noise() * 2 - 1) * reference * crackleLevel;
     pop *= .92;
     const crack = pop - .65 * prevPop;
     prevPop = pop;
-    const hiss = has('hiss') ? noiseBass(noiseFilter(noise() * 2 - 1)) * reference * .22 * s.hiss / 100 : 0;
+    const hiss = hissLevel ? noiseBass(noiseFilter(noise() * 2 - 1)) * reference * hissLevel : 0;
     for (let c = 0; c < 2; c++) {
       const dry = tone[c](interpolate(source[c], position));
-      const room = rooms[c](dry);
-      output[c][i] = dry * (1 - wet * .4) + room * wet + hiss + crack;
+      const room = rooms ? rooms[c](dry) * wet : 0;
+      output[c][i] = dry * dryMix + room + hiss + crack;
     }
   }
   return output;
 }
 
-function encode(channels, ceiling, limiter = true) {
+function encode(channels, ceiling, limiter = true, peaks) {
   const length = channels[0].length;
   const encoder = new lamejs.Mp3Encoder(2, rate, 320);
   const block = 1152;
   const pcm = [new Int16Array(block), new Int16Array(block)];
   const peak = offset => {
     let value = 0;
-    for (let i = offset; i < Math.min(offset + block, length); i++) {
+    const end = Math.min(offset + block, length);
+    for (let i = offset; i < end; i++) {
       value = Math.max(value, Math.abs(channels[0][i]), Math.abs(channels[1][i]));
     }
     return value;
   };
   const limit = db(ceiling);
   let gain = 1;
-  let current = peak(0);
+  let current = limiter ? peak(0) : 0;
   const frames = [];
   for (let start = 0; start < length; start += block) {
-    const next = peak(start + block);
+    const next = limiter ? peak(start + block) : 0;
     const desired = limiter ? Math.min(1, limit / (Math.max(current, next) || 1)) : 1;
     const count = Math.min(block, length - start);
     for (let i = 0; i < count; i++) {
       gain = desired < gain ? desired : gain + (desired - gain) * .0003;
       for (let c = 0; c < 2; c++) pcm[c][i] = Math.round(Math.max(-1, Math.min(1, channels[c][start + i] * gain)) * 32767);
     }
+    if (peaks) {
+      for (let i = 0; i < count; i++) {
+        const bin = Math.floor((start + i) * peaks.length / length);
+        peaks[bin] = Math.max(peaks[bin], Math.abs(pcm[0][i]), Math.abs(pcm[1][i]));
+      }
+    }
     current = next;
     const bytes = encoder.encodeBuffer(pcm[0].subarray(0, count), pcm[1].subarray(0, count));
     if (bytes.length) frames.push(bytes);
-    if (start % (block * 100) === 0) progress(.55 + .44 * start / length, 'Exportando MP3…');
+    if (start % (block * 32) === 0) {
+      const percent = Math.floor(100 * start / length);
+      progress(.2 + .79 * start / length, 'Codificando MP3 · ' + percent + ' %');
+    }
   }
   frames.push(encoder.flush());
   return new Blob(frames, { type: 'audio/mpeg' });
 }
 
-self.onmessage = ({data: {channels, settings, enabled}}) => {
+function loadEncoder() {
+  if (typeof lamejs === 'undefined') importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
+}
+
+self.onmessage = ({data: {channels, settings, enabled, prepare}}) => {
+  if (prepare) {
+    try { loadEncoder(); } catch { /* The next conversion can retry. */ }
+    return;
+  }
   try {
     progress(.03, 'Aplicando tono, velocidad, reverb y vinilo…');
     const processed = processAudio(channels, settings, enabled);
-    progress(.53, 'Cargando el codificador MP3…');
-    importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
-    const blob = encode(processed, settings.ceiling, enabled?.limiter !== false);
-    postMessage({blob});
+    progress(.18, 'Preparando el MP3…');
+    loadEncoder();
+    const peaks = new Float32Array(Math.min(2048, processed[0].length));
+    const blob = encode(processed, settings.ceiling, enabled?.limiter !== false, peaks);
+    postMessage({blob, peaks}, [peaks.buffer]);
   } catch (error) {
     postMessage({error: 'No se pudo procesar el audio. ' + (error.message || String(error))});
   }

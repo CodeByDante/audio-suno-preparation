@@ -84,3 +84,6 @@ h1 { font-size:clamp(32px,5vw,54px); letter-spacing:-.055em; margin:0 0 24px; }
 #result #download { margin:0; background:var(--accent); color:#20152d; }
 #result-play { background:#372952; color:#f6efff; }
 #source-preview .transport { justify-content:center; }
+#empty-wave { width:100%; border-radius:0; font-weight:500; }
+#empty-wave:not(:disabled) { pointer-events:auto; cursor:pointer; }
+#empty-wave:disabled { opacity:1; }

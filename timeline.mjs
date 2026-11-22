@@ -7,7 +7,7 @@ function time(seconds) {
   return minutes + ':' + remainder;
 }
 
-export function timeline(player, prefix = '', track = 'pista original') {
+export function timeline(player, prefix = '', track = 'pista original', chooseFile) {
   const resolve = id => get(prefix + id);
   const canvas = resolve('waveform');
   const seek = resolve('seek');
@@ -20,6 +20,8 @@ export function timeline(player, prefix = '', track = 'pista original') {
   seek.addEventListener('pointerdown', () => surface.classList.add('pointer-focus'));
   seek.addEventListener('keydown', () => surface.classList.remove('pointer-focus'));
   seek.addEventListener('blur', () => surface.classList.remove('pointer-focus'));
+  let hasSource = !chooseFile;
+  if (chooseFile) empty.addEventListener('click', () => { if (!hasSource) chooseFile(); });
   let peaks;
   let frame;
 
@@ -48,7 +50,7 @@ export function timeline(player, prefix = '', track = 'pista original') {
     const duration = Number.isFinite(player.duration) ? player.duration : 0;
     const position = duration ? Math.min(player.currentTime, duration) : 0;
     seek.disabled = !duration;
-    play.disabled = !duration;
+    play.disabled = !duration && hasSource;
     seek.max = duration;
     seek.value = position;
     const timestamp = time(position);
@@ -58,7 +60,7 @@ export function timeline(player, prefix = '', track = 'pista original') {
     clock.textContent = timestamp + ' / ' + time(duration);
     const playing = duration && !player.paused && !player.ended;
     play.textContent = playing ? 'Ⅱ  Pausar' : '▶  Reproducir';
-    play.setAttribute('aria-label', playing ? ('Pausar ' + track) : ('Reproducir ' + track));
+    play.setAttribute('aria-label', hasSource ? (playing ? 'Pausar ' + track : 'Reproducir ' + track) : 'Cargar audio');
   }
 
   function animate() {
@@ -77,6 +79,7 @@ export function timeline(player, prefix = '', track = 'pista original') {
     update();
   });
   play.addEventListener('click', () => {
+    if (!hasSource) return chooseFile();
     if (player.paused) {
       player.play().catch(() => { get('status').textContent = 'No se pudo reproducir este archivo en el navegador.'; });
     } else player.pause();
@@ -85,9 +88,11 @@ export function timeline(player, prefix = '', track = 'pista original') {
 
   return {
     reset(selected) {
+      hasSource = !chooseFile || selected;
+      if (chooseFile) empty.disabled = selected;
       peaks = undefined;
       empty.hidden = false;
-      empty.textContent = selected ? 'Leyendo la forma de onda…' : 'Selecciona un archivo para ver su forma de onda';
+      empty.textContent = selected ? 'Leyendo la forma de onda…' : 'Haz clic para cargar un audio';
       paint();
       update();
     },

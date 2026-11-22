@@ -1,11 +1,11 @@
 import { preset, rate } from './settings.mjs';
-import { timeline } from './timeline.mjs?v=5';
+import { timeline } from './timeline.mjs?v=7';
 const el = id => document.getElementById(id);
 const form = el('processor');
 const file = el('file');
 const effects = el('effects');
 const sourcePlayer = el('source-player');
-const sourceTimeline = timeline(sourcePlayer);
+const sourceTimeline = timeline(sourcePlayer, '', 'pista original', () => file.click());
 const player = el('player');
 const resultTimeline = timeline(player, 'result-', 'audio procesado');
 const effectChecks = [...effects.querySelectorAll('input[type=checkbox]')];

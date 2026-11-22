@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Audio Suno Preparation</title><link rel="stylesheet" href="./style.css?v=3"></head>
+<title>Audio Suno Preparation</title><link rel="stylesheet" href="./style.css?v=4"></head>
 <body><header><span class="mark" aria-hidden="true">♫</span> Audio Suno Preparation</header>
 <main><h1>Editor de audio</h1>
 <form class="panel" id="processor">
@@ -9,15 +9,15 @@
 <span id="filename">MP3, WAV, FLAC o MP4</span>
 </div>
 <fieldset id="effects"><legend>Efectos activos</legend>
-<label><input type="checkbox" name="effect-pitch" checked> Tono · −12 semitonos</label>
-<label><input type="checkbox" name="effect-speed" checked> Velocidad · 0.5×</label>
-<label><input type="checkbox" name="effect-band" checked> Filtro · 220–1900 Hz</label>
-<label><input type="checkbox" name="effect-eq" checked> Realce · 600 Hz</label>
-<label><input type="checkbox" name="effect-reverb" checked> Reverb larga</label>
-<label><input type="checkbox" name="effect-hiss" checked> Siseo de vinilo</label>
-<label><input type="checkbox" name="effect-crackle" checked> Crujidos y chasquidos</label>
-<label><input type="checkbox" name="effect-wow" checked> Fluctuación de vinilo</label>
-<label><input type="checkbox" name="effect-limiter" checked> Limitador · −1 dBFS</label>
+<div class="effect"><label><input type="checkbox" name="effect-pitch" checked> Tono</label><div class="values"><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir semitonos">−</button><input name="pitch" type="number" min="-24" max="12" step="1" value="-12" aria-label="Semitonos (st)" title="Doble clic o Enter para editar" readonly><span>st</span><button type="button" data-step="1" aria-label="Aumentar semitonos">+</button></div></div></div>
+<div class="effect"><label><input type="checkbox" name="effect-speed" checked> Velocidad</label><div class="values"><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir velocidad">−</button><input name="speed" type="number" min=".25" max="2" step=".01" value=".5" aria-label="Velocidad (×)" title="Doble clic o Enter para editar" readonly><span>×</span><button type="button" data-step="1" aria-label="Aumentar velocidad">+</button></div></div></div>
+<div class="effect"><label><input type="checkbox" name="effect-band" checked> Filtro</label><div class="values"><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir corte inferior">−</button><input name="low" type="number" min="20" max="18000" step="1" value="220" aria-label="Corte inferior (Hz)" title="Doble clic o Enter para editar" readonly><span>Hz</span><button type="button" data-step="1" aria-label="Aumentar corte inferior">+</button></div><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir corte superior">−</button><input name="high" type="number" min="21" max="20000" step="1" value="1900" aria-label="Corte superior (Hz)" title="Doble clic o Enter para editar" readonly><span>Hz</span><button type="button" data-step="1" aria-label="Aumentar corte superior">+</button></div></div></div>
+<div class="effect"><label><input type="checkbox" name="effect-eq" checked> Realce</label><div class="values"><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir frecuencia central">−</button><input name="eq" type="number" min="20" max="20000" step="1" value="600" aria-label="Frecuencia central (Hz)" title="Doble clic o Enter para editar" readonly><span>Hz</span><button type="button" data-step="1" aria-label="Aumentar frecuencia central">+</button></div><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir ganancia">−</button><input name="boost" type="number" min="-18" max="18" step=".1" value="5.5" aria-label="Ganancia (dB)" title="Doble clic o Enter para editar" readonly><span>dB</span><button type="button" data-step="1" aria-label="Aumentar ganancia">+</button></div></div></div>
+<div class="effect"><label><input type="checkbox" name="effect-reverb" checked> Reverb</label><div class="values"><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir cola de reverberación">−</button><input name="decay" type="number" min=".2" max="8" step=".1" value="3.8" aria-label="Cola de reverberación (s)" title="Doble clic o Enter para editar" readonly><span>s</span><button type="button" data-step="1" aria-label="Aumentar cola de reverberación">+</button></div><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir mezcla de reverberación">−</button><input name="wet" type="number" min="0" max="60" step="1" value="22" aria-label="Mezcla de reverberación (%)" title="Doble clic o Enter para editar" readonly><span>%</span><button type="button" data-step="1" aria-label="Aumentar mezcla de reverberación">+</button></div></div></div>
+<div class="effect"><label><input type="checkbox" name="effect-hiss" checked> Siseo</label><div class="values"><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir nivel de siseo">−</button><input name="hiss" type="number" min="0" max="100" step="1" value="18" aria-label="Nivel de siseo (%)" title="Doble clic o Enter para editar" readonly><span>%</span><button type="button" data-step="1" aria-label="Aumentar nivel de siseo">+</button></div></div></div>
+<div class="effect"><label><input type="checkbox" name="effect-crackle" checked> Crujidos y chasquidos</label><div class="values"><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir nivel de crujidos">−</button><input name="crackle" type="number" min="0" max="100" step="1" value="22" aria-label="Nivel de crujidos (%)" title="Doble clic o Enter para editar" readonly><span>%</span><button type="button" data-step="1" aria-label="Aumentar nivel de crujidos">+</button></div></div></div>
+<div class="effect"><label><input type="checkbox" name="effect-wow" checked> Fluctuación</label><div class="values"><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir nivel de fluctuación">−</button><input name="wow" type="number" min="0" max="100" step="1" value="12" aria-label="Nivel de fluctuación (%)" title="Doble clic o Enter para editar" readonly><span>%</span><button type="button" data-step="1" aria-label="Aumentar nivel de fluctuación">+</button></div></div></div>
+<div class="effect"><label><input type="checkbox" name="effect-limiter" checked> Limitador</label><div class="values"><div class="stepper"><button type="button" data-step="-1" aria-label="Disminuir techo del limitador">−</button><input name="ceiling" type="number" min="-12" max="-.1" step=".1" value="-1" aria-label="Techo del limitador (dBFS)" title="Doble clic o Enter para editar" readonly><span>dBFS</span><button type="button" data-step="1" aria-label="Aumentar techo del limitador">+</button></div></div></div>
 </fieldset>
 <section id="source-preview" aria-label="Pista original">
 <div class="timeline">
@@ -32,24 +32,9 @@
 </div>
 <audio id="source-player" hidden preload="metadata"></audio>
 </section>
-<div class="actions"><button id="preset" type="button" disabled>Procesar con valores por defecto ↗</button></div>
-<details><summary>Personalizar efectos</summary>
-<div class="settings">
-<label>Tono (semitonos)<input name="pitch" type="number" min="-24" max="12" step="1" value="-12" required></label>
-<label>Velocidad (×)<input name="speed" type="number" min=".25" max="2" step=".01" value=".5" required></label>
-<label>Corte inferior (Hz)<input name="low" type="number" min="20" max="18000" step="1" value="220" required></label>
-<label>Corte superior (Hz)<input name="high" type="number" min="21" max="20000" step="1" value="1900" required></label>
-<label>Centro del realce (Hz)<input name="eq" type="number" min="20" max="20000" step="1" value="600" required></label>
-<label>Ganancia del realce (dB)<input name="boost" type="number" min="-18" max="18" step=".1" value="5.5" required></label>
-<label>Cola de reverb (s)<input name="decay" type="number" min=".2" max="8" step=".1" value="3.8" required></label>
-<label>Mezcla de reverb (%)<input name="wet" type="number" min="0" max="60" step="1" value="22" required></label>
-<label>Siseo (%)<input name="hiss" type="number" min="0" max="100" step="1" value="18" required></label>
-<label>Crujidos y chasquidos (%)<input name="crackle" type="number" min="0" max="100" step="1" value="22" required></label>
-<label>Fluctuación de vinilo (%)<input name="wow" type="number" min="0" max="100" step="1" value="12" required></label>
-<label>Techo del limitador (dBFS)<input name="ceiling" type="number" min="-12" max="-.1" step=".1" value="-1" required></label>
-</div><button type="submit" id="custom" disabled>Procesar con mis ajustes</button></details>
+<div class="actions"><button id="preset" type="submit" disabled>Procesar audio ↗</button></div>
 <div id="progress-box" hidden><progress id="progress" max="1"></progress><button id="cancel" type="button">Cancelar</button></div>
 <p id="status" role="status"></p>
 <div id="result" hidden><audio id="player" controls preload="metadata"></audio><a id="download" download>Descargar MP3 ↓</a></div>
 </form><footer>El audio se procesa en tu navegador y el original se conserva.</footer></main>
-<script type="module" src="./app.mjs?v=3"></script></body></html>
+<script type="module" src="./app.mjs?v=4"></script></body></html>

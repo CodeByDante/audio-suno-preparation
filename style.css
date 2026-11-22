@@ -61,3 +61,13 @@ h1 { font-size:clamp(32px,5vw,54px); letter-spacing:-.055em; margin:0 0 24px; }
 #clock { font-variant-numeric:tabular-nums; color:#d6c7e9; }
 .actions { margin:16px 0 8px; }
 #preset { width:auto; }
+#effects { grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr)); align-items:start; }
+.effect { display:grid; gap:8px; min-width:0; padding:8px; border-radius:8px; background:#231b30; }
+.values { display:flex; flex-wrap:wrap; gap:6px; }
+.stepper { display:flex; align-items:center; min-width:0; background:#15111e; border:1px solid #544164; border-radius:7px; }
+.stepper input { width:5ch; min-width:0; box-sizing:content-box; background:transparent; color:inherit; border:0; padding:4px 2px; text-align:center; font-variant-numeric:tabular-nums; appearance:textfield; }
+.stepper input::-webkit-inner-spin-button,.stepper input::-webkit-outer-spin-button { appearance:none; margin:0; }
+.stepper input:read-only { cursor:text; }
+.stepper input:not(:read-only) { outline:1px solid var(--accent); }
+.stepper span { font-size:11px; color:#c9bed9; padding-right:4px; }
+.stepper button { padding:4px 7px; min-height:31px; border-radius:5px; color:#f6efff; background:#372952; }

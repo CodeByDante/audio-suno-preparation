@@ -9,7 +9,7 @@ const sourceTimeline = timeline(sourcePlayer);
 let worker, url, sourceUrl, active, decodedSource;
 
 function selectedEffects() {
-  return Object.fromEntries([...effects.querySelectorAll('input')].map(input => [
+  return Object.fromEntries([...effects.querySelectorAll('input[type=checkbox]')].map(input => [
     input.name.slice('effect-'.length), input.checked,
   ]));
 }
@@ -17,7 +17,7 @@ function busy(value) {
   active = value;
   file.disabled = value;
   effects.disabled = value;
-  el('preset').disabled = el('custom').disabled = value || !file.files.length;
+  el('preset').disabled = value || !file.files.length;
   el('progress-box').hidden = !value;
 }
 function clear() {
@@ -100,8 +100,53 @@ async function start(settings) {
     if (worker === job) finish('No se pudo leer el audio. Prueba con un MP3, WAV o FLAC válido.');
   }
 }
-el('preset').onclick = () => start(preset);
 form.onsubmit = event => {
   event.preventDefault();
+  if (document.activeElement?.matches('.stepper input')) document.activeElement.blur();
   start(Object.fromEntries(Object.keys(preset).map(key => [key, form.elements.namedItem(key).valueAsNumber])));
 };
+
+for (const stepper of effects.querySelectorAll('.stepper')) {
+  const input = stepper.querySelector('input');
+  let previous = input.value;
+  const begin = () => {
+    if (!input.readOnly) return;
+    previous = input.value;
+    input.readOnly = false;
+    input.focus();
+  };
+  const commit = () => {
+    if (input.readOnly) return;
+    const current = Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : Number(previous);
+    const minimum = Number(input.min);
+    const clamped = Math.max(minimum, Math.min(Number(input.max), current));
+    const step = Number(input.step);
+    const decimalPlaces = (input.step.split('.')[1] || '').length;
+    input.value = (minimum + Math.round((clamped - minimum) / step) * step).toFixed(decimalPlaces);
+    input.readOnly = true;
+  };
+  input.addEventListener('dblclick', begin);
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !input.readOnly) {
+      input.value = previous;
+      commit();
+      event.preventDefault();
+    }
+    if (event.key === 'Enter') {
+      if (input.readOnly) begin();
+      else commit();
+      event.preventDefault();
+    }
+  });
+  for (const button of stepper.querySelectorAll('button')) {
+    button.addEventListener('click', () => {
+      commit();
+      const increment = input.name === 'speed' ? .01 : 1;
+      const next = input.valueAsNumber + Number(button.dataset.step) * increment;
+      const bounded = Math.max(Number(input.min), Math.min(Number(input.max), next));
+      const decimalPlaces = (input.step.split('.')[1] || '').length;
+      input.value = bounded.toFixed(decimalPlaces);
+    });
+  }
+}

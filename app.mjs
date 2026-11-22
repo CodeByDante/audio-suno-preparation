@@ -2,10 +2,19 @@ import { preset, rate } from './settings.mjs';
 const el = id => document.getElementById(id);
 const form = el('processor');
 const file = el('file');
-let worker, url, active;
+const effects = el('effects');
+const sourcePlayer = el('source-player');
+let worker, url, sourceUrl, active;
+
+function selectedEffects() {
+  return Object.fromEntries([...effects.querySelectorAll('input')].map(input => [
+    input.name.slice('effect-'.length), input.checked,
+  ]));
+}
 function busy(value) {
   active = value;
   file.disabled = value;
+  effects.disabled = value;
   el('preset').disabled = el('custom').disabled = value || !file.files.length;
   el('progress-box').hidden = !value;
 }
@@ -24,6 +33,18 @@ function finish(message) {
 }
 file.onchange = () => {
   clear();
+  sourcePlayer.pause();
+  if (sourceUrl) URL.revokeObjectURL(sourceUrl);
+  const selected = file.files[0];
+  if (selected) {
+    sourceUrl = URL.createObjectURL(selected);
+    sourcePlayer.src = sourceUrl;
+  } else {
+    sourceUrl = undefined;
+    sourcePlayer.removeAttribute('src');
+    sourcePlayer.load();
+  }
+  el('source-preview').hidden = !selected;
   el('filename').textContent = file.files[0]?.name || 'Elegir archivo';
   el('status').textContent = '';
   busy(false);
@@ -32,15 +53,17 @@ el('cancel').onclick = () => finish('Procesamiento cancelado.');
 async function start(settings) {
   const source = file.files[0];
   if (active || !source) return;
-  if (settings.low >= settings.high) {
+  const enabled = selectedEffects();
+  if (enabled.band && settings.low >= settings.high) {
     el('status').textContent = 'El corte inferior debe ser menor que el corte superior.';
     return;
   }
   clear();
+  sourcePlayer.pause();
   busy(true);
   el('progress').removeAttribute('value');
   el('status').textContent = 'Leyendo el archivo…';
-  const job = new Worker('./worker.js');
+  const job = new Worker('./worker.js?v=2');
   worker = job;
   try {
     const decoded = await new OfflineAudioContext(2, 1, rate).decodeAudioData(await source.arrayBuffer());
@@ -60,7 +83,7 @@ async function start(settings) {
       el('status').textContent = data.message;
     };
     job.onerror = () => finish('No se pudo iniciar el motor de audio.');
-    job.postMessage({ channels, settings }, channels.map(channel => channel.buffer));
+    job.postMessage({ channels, settings, enabled }, channels.map(channel => channel.buffer));
   } catch {
     if (worker === job) finish('No se pudo leer el audio. Prueba con un MP3, WAV o FLAC válido.');
   }

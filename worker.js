@@ -85,18 +85,23 @@ function reverb(decay, channel) {
   };
 }
 
-function processAudio(channels, s) {
-  const pitchRatio = 2 ** (s.pitch / 12);
+function processAudio(channels, s, enabled = {}) {
+  const has = effect => enabled[effect] !== false;
+  const pitchRatio = 2 ** ((has('pitch') ? s.pitch : 0) / 12);
   // Compensate for the resampler's tempo change before applying the chosen pitch.
-  const source = stretch(channels, s.speed / pitchRatio);
-  const length = Math.max(1, Math.round(channels[0].length / s.speed));
+  const speed = has('speed') ? s.speed : 1;
+  const source = stretch(channels, speed / pitchRatio);
+  const length = Math.max(1, Math.round(channels[0].length / speed));
   const output = [new Float32Array(length), new Float32Array(length)];
   const antiAlias = 19500 / Math.max(1, pitchRatio);
   const tone = output.map(() => {
     const highpass = filter('highpass', s.low);
     const lowpass = filter('lowpass', s.high);
     const peak = filter('peak', s.eq, s.boost);
-    return input => peak(lowpass(highpass(input)));
+    return input => {
+      const band = has('band') ? lowpass(highpass(input)) : input;
+      return has('eq') ? peak(band) : band;
+    };
   });
   if (pitchRatio > 1) {
     for (const channel of source) {
@@ -108,7 +113,7 @@ function processAudio(channels, s) {
   const rooms = output.map((_, c) => reverb(s.decay, c));
   const noiseFilter = filter('lowpass', 6400);
   const noiseBass = filter('highpass', 260);
-  const wet = s.wet / 100;
+  const wet = has('reverb') ? s.wet / 100 : 0;
   let power = 0;
   for (const channel of channels) for (const sample of channel) power += sample * sample;
   const reference = Math.max(.005, Math.min(.3, Math.sqrt(power / (2 * channels[0].length))));
@@ -121,13 +126,13 @@ function processAudio(channels, s) {
   let prevPop = 0;
   for (let i = 0; i < length; i++) {
     const t = i / rate;
-    const wow = s.wow / 100 * rate * (.014 * Math.sin(t * 2.4) + .0008 * Math.sin(t * 41));
+    const wow = (has('wow') ? s.wow : 0) / 100 * rate * (.014 * Math.sin(t * 2.4) + .0008 * Math.sin(t * 41));
     const position = Math.max(0, Math.min(source[0].length - 1, (i + wow) * pitchRatio));
-    if (noise() < 22 / rate) pop += (noise() * 2 - 1) * reference * s.crackle / 100;
+    if (has('crackle') && noise() < 22 / rate) pop += (noise() * 2 - 1) * reference * s.crackle / 100;
     pop *= .92;
     const crack = pop - .65 * prevPop;
     prevPop = pop;
-    const hiss = noiseBass(noiseFilter(noise() * 2 - 1)) * reference * .22 * s.hiss / 100;
+    const hiss = has('hiss') ? noiseBass(noiseFilter(noise() * 2 - 1)) * reference * .22 * s.hiss / 100 : 0;
     for (let c = 0; c < 2; c++) {
       const dry = tone[c](interpolate(source[c], position));
       const room = rooms[c](dry);
@@ -137,7 +142,7 @@ function processAudio(channels, s) {
   return output;
 }
 
-function encode(channels, ceiling) {
+function encode(channels, ceiling, limiter = true) {
   const length = channels[0].length;
   const encoder = new lamejs.Mp3Encoder(2, rate, 320);
   const block = 1152;
@@ -155,11 +160,11 @@ function encode(channels, ceiling) {
   const frames = [];
   for (let start = 0; start < length; start += block) {
     const next = peak(start + block);
-    const desired = Math.min(1, limit / (Math.max(current, next) || 1));
+    const desired = limiter ? Math.min(1, limit / (Math.max(current, next) || 1)) : 1;
     const count = Math.min(block, length - start);
     for (let i = 0; i < count; i++) {
       gain = desired < gain ? desired : gain + (desired - gain) * .0003;
-      for (let c = 0; c < 2; c++) pcm[c][i] = Math.round(channels[c][start + i] * gain * 32767);
+      for (let c = 0; c < 2; c++) pcm[c][i] = Math.round(Math.max(-1, Math.min(1, channels[c][start + i] * gain)) * 32767);
     }
     current = next;
     const bytes = encoder.encodeBuffer(pcm[0].subarray(0, count), pcm[1].subarray(0, count));
@@ -170,13 +175,13 @@ function encode(channels, ceiling) {
   return new Blob(frames, { type: 'audio/mpeg' });
 }
 
-self.onmessage = ({data: {channels, settings}}) => {
+self.onmessage = ({data: {channels, settings, enabled}}) => {
   try {
     progress(.03, 'Aplicando tono, velocidad, reverb y vinilo…');
-    const processed = processAudio(channels, settings);
+    const processed = processAudio(channels, settings, enabled);
     progress(.53, 'Cargando el codificador MP3…');
     importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
-    const blob = encode(processed, settings.ceiling);
+    const blob = encode(processed, settings.ceiling, enabled?.limiter !== false);
     postMessage({blob});
   } catch (error) {
     postMessage({error: 'No se pudo procesar el audio. ' + (error.message || String(error))});

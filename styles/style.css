@@ -63,6 +63,7 @@ h1 { font-size:clamp(32px,5vw,54px); letter-spacing:-.055em; margin:0 0 24px; }
 #preset { width:auto; }
 #effects { grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr)); align-items:start; }
 .effect { display:grid; gap:8px; min-width:0; padding:8px; border-radius:8px; background:#231b30; }
+.effect-help { margin:0; color:#d7cce2; font-size:12px; line-height:1.4; }
 .values { display:flex; flex-wrap:wrap; gap:6px; }
 .stepper { display:flex; align-items:center; min-width:0; background:#15111e; border:1px solid #544164; border-radius:7px; }
 .stepper input { width:5ch; min-width:0; box-sizing:content-box; background:transparent; color:inherit; border:0; padding:4px 2px; text-align:center; font-variant-numeric:tabular-nums; appearance:textfield; }

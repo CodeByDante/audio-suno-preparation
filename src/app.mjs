@@ -173,7 +173,7 @@ player.addEventListener('play', () => sourcePlayer.pause());
 let worker, url, sourceUrl, active, decodedSource, conversion;
 
 function audioWorker() {
-  return worker ??= new Worker('./worker.js?v=9');
+  return worker ??= new Worker(new URL('./workers/audio-worker.js?v=9', import.meta.url));
 }
 
 function selectedEffects() {

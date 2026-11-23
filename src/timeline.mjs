@@ -7,7 +7,7 @@ function time(seconds) {
   return minutes + ':' + remainder;
 }
 
-export function timeline(player, prefix = '', track = 'pista original', chooseFile) {
+export function timeline(player, prefix = '', track = 'pista original', chooseFile, beforePlay) {
   const resolve = id => get(prefix + id);
   const canvas = resolve('waveform');
   const seek = resolve('seek');
@@ -24,6 +24,7 @@ export function timeline(player, prefix = '', track = 'pista original', chooseFi
   if (chooseFile) empty.addEventListener('click', () => { if (!hasSource) chooseFile(); });
   let peaks;
   let frame;
+  let starting = false;
 
   function paint() {
     const width = Math.round(canvas.clientWidth * devicePixelRatio);
@@ -78,10 +79,19 @@ export function timeline(player, prefix = '', track = 'pista original', chooseFi
     player.currentTime = Number(seek.value);
     update();
   });
-  play.addEventListener('click', () => {
+  play.addEventListener('click', async () => {
     if (!hasSource) return chooseFile();
     if (player.paused) {
-      player.play().catch(() => { get('status').textContent = 'No se pudo reproducir este archivo en el navegador.'; });
+      if (starting) return;
+      starting = true;
+      try {
+        if (beforePlay) await beforePlay();
+        await player.play();
+      } catch {
+        get('status').textContent = 'No se pudo reproducir este archivo en el navegador.';
+      } finally {
+        starting = false;
+      }
     } else player.pause();
   });
   new ResizeObserver(paint).observe(canvas);

@@ -1,11 +1,12 @@
 import { preset, rate } from './settings.mjs';
-import { timeline } from './timeline.mjs?v=8';
+import { timeline } from './timeline.mjs?v=9';
+import { livePreview } from './live-preview.mjs';
 const el = id => document.getElementById(id);
 const form = el('processor');
 const file = el('file');
 const effects = el('effects');
 const sourcePlayer = el('source-player');
-const sourceTimeline = timeline(sourcePlayer, '', 'pista original', () => file.click());
+const sourceTimeline = timeline(sourcePlayer, '', 'pista original', () => file.click(), preparePreview);
 const player = el('player');
 const resultTimeline = timeline(player, 'result-', 'audio procesado');
 const effectChecks = [...effects.querySelectorAll('input[type=checkbox]')];
@@ -24,6 +25,42 @@ const trimEnd = el('trim-end');
 const trimSurface = cutSelection.closest('.timeline');
 let mode = 'effects';
 let sourceDuration = 0;
+let previewContext, previewPending, applyPreview;
+
+async function preparePreview() {
+  if (mode !== 'effects' && !previewContext) return;
+  if (!window.AudioContext || !window.AudioWorkletNode) {
+    el('status').textContent = 'La escucha en vivo requiere un navegador compatible con AudioWorklet.';
+    return;
+  }
+  try {
+    previewContext ??= new AudioContext();
+    const resumed = previewContext.resume();
+    previewPending ??= livePreview(previewContext, sourcePlayer);
+    const [, preview] = await Promise.all([resumed, previewPending]);
+    applyPreview = preview;
+    updatePreview();
+  } catch {
+    previewPending = undefined;
+    el('status').textContent = 'No se pudieron activar los efectos en vivo.';
+  }
+}
+
+function currentSettings() {
+  return Object.fromEntries(Object.keys(preset).map(key => [key, form.elements.namedItem(key).valueAsNumber]));
+}
+
+function updatePreview() {
+  const settings = currentSettings();
+  if (Object.values(settings).every(Number.isFinite)) {
+    applyPreview?.(settings, mode === 'effects' ? selectedEffects() : {});
+  }
+}
+
+function syncEffects() {
+  updatePresetSelection();
+  updatePreview();
+}
 
 function updateCutSelection() {
   const start = cutStart.valueAsNumber;
@@ -47,6 +84,7 @@ function updateCutSelection() {
 
 function setMode(next) {
   mode = next;
+  updatePreview();
   const cutting = next === 'cut';
   const joining = next === 'join';
   for (const [id, value] of modeButtons) el(id).setAttribute('aria-pressed', String(next === value));
@@ -56,7 +94,7 @@ function setMode(next) {
   if (joining) sourcePlayer.pause();
   cutPanel.hidden = !cutting;
   busy(Boolean(active));
-  el('preset').textContent = {effects:'Procesar audio ↗',cut:'Cortar y exportar MP3 ↗',join:'Unir y exportar MP3 ↗'}[next];
+  el('preset').textContent = {effects:'Descargar MP3 ↓',cut:'Cortar y exportar MP3 ↗',join:'Unir y exportar MP3 ↗'}[next];
   el('status').textContent = '';
   updateCutSelection();
 }
@@ -163,11 +201,11 @@ function selectPreset(defaults) {
   if (defaults) {
     for (const [key, value] of Object.entries(preset)) form.elements.namedItem(key).value = value;
   }
-  updatePresetSelection();
+  syncEffects();
 }
 restoreDefaults.addEventListener('click', () => selectPreset(true));
 clearEffects.addEventListener('click', () => selectPreset(false));
-effects.addEventListener('change', updatePresetSelection);
+effects.addEventListener('change', syncEffects);
 sourcePlayer.addEventListener('play', () => player.pause());
 player.addEventListener('play', () => sourcePlayer.pause());
 let worker, url, sourceUrl, active, decodedSource, conversion;
@@ -314,6 +352,7 @@ async function start(settings) {
         el('result').hidden = false;
         resultTimeline.reset(true);
         resultTimeline.drawPeaks(data.peaks);
+        if (!cutting && !joining) el('download').click();
         return finish('');
       }
       el('progress').value = data.progress;
@@ -328,7 +367,7 @@ async function start(settings) {
 form.onsubmit = event => {
   event.preventDefault();
   if (document.activeElement?.matches('.stepper input')) document.activeElement.blur();
-  start(Object.fromEntries(Object.keys(preset).map(key => [key, form.elements.namedItem(key).valueAsNumber])));
+  start(currentSettings());
 };
 
 for (const stepper of effects.querySelectorAll('.stepper')) {
@@ -349,8 +388,11 @@ for (const stepper of effects.querySelectorAll('.stepper')) {
     const decimalPlaces = (input.step.split('.')[1] || '').length;
     input.value = (minimum + Math.round((clamped - minimum) / step) * step).toFixed(decimalPlaces);
     input.readOnly = true;
-    updatePresetSelection();
+    syncEffects();
   };
+  input.addEventListener('input', () => {
+    if (input.validity.valid && Number.isFinite(input.valueAsNumber)) updatePreview();
+  });
   input.addEventListener('dblclick', begin);
   input.addEventListener('blur', commit);
   input.addEventListener('keydown', event => {
@@ -373,7 +415,7 @@ for (const stepper of effects.querySelectorAll('.stepper')) {
       const bounded = Math.max(Number(input.min), Math.min(Number(input.max), next));
       const decimalPlaces = (input.step.split('.')[1] || '').length;
       input.value = bounded.toFixed(decimalPlaces);
-      updatePresetSelection();
+      syncEffects();
     });
   }
 }
